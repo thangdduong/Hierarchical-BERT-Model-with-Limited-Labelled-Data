@@ -707,8 +707,8 @@ if __name__ == "__main__":
     print('training set sizes: ', train_sizes)
 
     gradient_clipping = 1.0
-    train_batch=256
-    val_batch=512
+    train_batch = 256
+    val_batch = 512
 
 
   
@@ -774,14 +774,14 @@ if __name__ == "__main__":
             # best_acc = 0.0
 
 
-            for e in tqdm(range(no_epochs), position=0, leave=True):
+            for e in tqdm(range(no_epochs)):
                 
                 
 
                 print('\n epoch ',e)
 
 
-                for i, data in enumerate(tqdm(trainloader, position=0, leave=True)):
+                for i, data in enumerate(tqdm(trainloader)):
 
                     model.train(True)
 
@@ -801,11 +801,11 @@ if __name__ == "__main__":
                     out = model(inputs)
 
 
-                    weight = [1.0,1.0]
+                    weight = [1.0 for _ in range(len(list_of_classes_name))]
                     print('balanced weight: ',weight)
                     weight = torch.tensor(weight).cuda(args['cuda_num'])
                     # weight = torch.tensor(weight).to('cuda')
-                    loss = nn.CrossEntropyLoss(weight,reduction='mean')
+                    loss = nn.CrossEntropyLoss(weight, reduction='mean')
 
                     output = loss(out[0], labels)
 
