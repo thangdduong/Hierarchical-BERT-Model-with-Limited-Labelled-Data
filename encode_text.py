@@ -16,6 +16,9 @@ from operator import add
 import re
 import string
 
+import nltk
+nltk.download('punkt')
+
 from nltk import sent_tokenize
 from tqdm import tqdm
 
@@ -29,10 +32,10 @@ import os
 os.environ['PYTHONHASHSEED'] = str(2019)
 
 args = {
-        'cuda_num': 1,
+        'cuda_num': 0,
 
         ## directory for original text data
-        'text_data_dir': 'corpus_data/',
+        'text_data_dir': 'raw_corpora/',
 
         ## directory for encoded embeddings
         'data_dir': 'datasets/',
@@ -70,16 +73,21 @@ def clean_corpus(corpus):
 def read_data(path):
 
     corpora = []
+    list_of_classes_name = []
     for filename in os.listdir(path):
 
         df_temp = pd.read_csv(path+filename, encoding='iso-8859-1')
-
+        class_name = filename.split('_')[-2]
         corpora.append(df_temp.text.tolist())
+        list_of_classes_name.append(class_name)
 
-    class_one_len = len(corpora[0])
-    class_two_len = len(corpora[1])
+    # class_one_len = len(corpora[0])
+    # class_two_len = len(corpora[1])
+    classes_len = [len(df_lst) for df_lst in corpora]
 
-    return corpora, class_one_len, class_two_len
+
+    #return corpora, class_one_len, class_two_len
+    return corpora, classes_len, list_of_classes_name
 
 
 
@@ -89,7 +97,7 @@ def read_data(path):
 def sentences_segmentation(corpora,tokenizer,min_token=0):
     segmented_documents = []
     
-    for document in tqdm(corpora):
+    for document in tqdm(corpora, position=0, leave=True):
 
         segmented_document = []
         seg_document = sent_tokenize(document)
@@ -109,15 +117,15 @@ def sentences_segmentation(corpora,tokenizer,min_token=0):
 
 
 
-
 def encode_fasttext(dataset_name):
 
-    corpora, class_one_len, class_two_len = read_data(os.path.join(args['text_data_dir'],'%s/'%(dataset_name)))
+    corpora, classes_len, list_of_classes_name = read_data(os.path.join(args['text_data_dir'],'%s/'%(dataset_name)))
 
     ## pretrained model downloaded from https://fasttext.cc/docs/en/pretrained-vectors.html
     model = fasttext.load_facebook_model('wiki.en.bin')
     
-    all_corpus = corpora[0]+corpora[1]
+    #all_corpus = corpora[0]+corpora[1]
+    all_corpus = [ele for sublist in corpora for ele in sublist]
     cleaned_corpus = clean_corpus(all_corpus)
 
     print('total number of examples ',len(cleaned_corpus),'\n')
@@ -139,7 +147,7 @@ def encode_fasttext(dataset_name):
 
     print('represetation shape', representations.shape) 
     
-    return representations,class_one_len,class_two_len
+    return representations, classes_len, list_of_classes_name
 
 
 # for roberta and roberta_hbm, we suggest do not apply any preprocessing
@@ -157,8 +165,9 @@ def encode_roberta(dataset_name):
     model.cuda(args['cuda_num'])
 
 
-    corpora, class_one_len, class_two_len = read_data(os.path.join(args['text_data_dir'],'%s/'%(dataset_name)))
-    all_corpus = corpora[0]+corpora[1]
+    corpora, classes_len, list_of_classes_name = read_data(os.path.join(args['text_data_dir'],'%s/'%(dataset_name)))
+    #all_corpus = corpora[0]+corpora[1]
+    all_corpus = [ele for sublist in corpora for ele in sublist]
 
 
     print('total number of examples ',len(all_corpus),'\n')
@@ -172,10 +181,9 @@ def encode_roberta(dataset_name):
 
     with torch.no_grad():
     
-        for article in tqdm(all_corpus):
+        for article in tqdm(all_corpus, position=0, leave=True):
     
             
-
             tokenized_text = tokenizer.tokenize(article)
 
 
@@ -237,7 +245,7 @@ def encode_roberta(dataset_name):
         else:
             ulti_representations_cls.append(representation)
 
-    return ulti_representations, ulti_representations_cls, class_one_len, class_two_len
+    return ulti_representations, ulti_representations_cls, classes_len, list_of_classes_name
 
 
 # for roberta and roberta_hbm, we suggest do not apply any preprocessing
@@ -254,8 +262,9 @@ def encode_roberta_hbm(dataset_name):
     model.cuda(args['cuda_num'])
 
 
-    corpora, class_one_len, class_two_len = read_data(os.path.join(args['text_data_dir'],'%s/'%(dataset_name)))
-    all_corpus = corpora[0]+corpora[1]
+    corpora, classes_len, list_of_classes_name = read_data(os.path.join(args['text_data_dir'],'%s/'%(dataset_name)))
+    #all_corpus = corpora[0]+corpora[1]
+    all_corpus = [ele for sublist in corpora for ele in sublist]
 
     print('size of the dataset:', len(all_corpus))
 
@@ -329,24 +338,27 @@ def encode_roberta_hbm(dataset_name):
 
 
 
-
-
     doc_sen_avg_embeddings = np.array(doc_sen_avg_embeddings)
 
-
-
-
-    doc_dict_neg={}
-    for i in range(len(doc_sen_avg_embeddings[:class_one_len])):
-        doc_dict_neg[i]=doc_sen_avg_embeddings[i]
+    
+    # doc_dict_neg={}
+    # for i in range(len(doc_sen_avg_embeddings[:class_one_len])):
+    #     doc_dict_neg[i]=doc_sen_avg_embeddings[i]
         
-    doc_dict_pos={}
-    for i in range(len(doc_sen_avg_embeddings[class_one_len:])):
-        doc_dict_pos[i]=doc_sen_avg_embeddings[class_one_len+i]
+    # doc_dict_pos={}
+    # for i in range(len(doc_sen_avg_embeddings[class_one_len:])):
+    #     doc_dict_pos[i]=doc_sen_avg_embeddings[class_one_len+i]
+
+    list_of_doc_dict = []
+    for i in range(len(list_of_classes_name)):
+        doc_dict = {}
+        for j in range(len(doc_sen_avg_embeddings[:classes_len[i]])):
+            doc_dict[j] = doc_sen_avg_embeddings[j]
+        list_of_doc_dict.append(doc_dict)
 
 
    
-    return doc_dict_neg, doc_dict_pos
+    return list_of_doc_dict, list_of_classes_name
 
 
     
@@ -381,28 +393,42 @@ if __name__ == "__main__":
 
         if value == 'hbm':
             print('starting coding hbm')
-            hbm_roberta_neg, hbm_roberta_pos = encode_roberta_hbm(dataset_name)
+            # hbm_roberta_neg, hbm_roberta_pos = encode_roberta_hbm(dataset_name)
 
-            with open(os.path.join(args['data_dir'],'roberta-base_data/%s_neg.p'%(dataset_name)), 'wb') as fp:
-                pickle.dump(hbm_roberta_neg, fp)
+            # with open(os.path.join(args['data_dir'],'roberta-base_data/%s_neg.p'%(dataset_name)), 'wb') as fp:
+            #     pickle.dump(hbm_roberta_neg, fp)
 
-            with open(os.path.join(args['data_dir'],'roberta-base_data/%s_pos.p'%(dataset_name)), 'wb') as fp:
-                pickle.dump(hbm_roberta_pos, fp)
+            # with open(os.path.join(args['data_dir'],'roberta-base_data/%s_pos.p'%(dataset_name)), 'wb') as fp:
+            #     pickle.dump(hbm_roberta_pos, fp)
+            hbm_roberta_class_doc_dicts, list_of_classes_name = encode_roberta_hbm(dataset_name)
+            for i in range(len(list_of_classes_name)):
+                with open(os.path.join(args['data_dir'], f'roberta-base_data/{dataset_name}_{list_of_classes_name[i]}.p'), 'wb') as fp:
+                    pickle.dump(hbm_roberta_class_doc_dicts[i], fp)
 
         if value == 'fasttext':
 
-            representations,class_one_len, class_two_len = encode_fasttext(dataset_name)
+            # representations, classes_len = encode_fasttext(dataset_name)
     
-            np.savetxt(os.path.join(args['data_dir'],"fasttext_data/%s_neg.csv"%(dataset_name)), representations[:class_one_len], delimiter=",")
-            np.savetxt(os.path.join(args['data_dir'],"fasttext_data/%s_pos.csv"%(dataset_name)), representations[class_one_len:], delimiter=",")
+            # np.savetxt(os.path.join(args['data_dir'],"fasttext_data/%s_neg.csv"%(dataset_name)), representations[:class_one_len], delimiter=",")
+            # np.savetxt(os.path.join(args['data_dir'],"fasttext_data/%s_pos.csv"%(dataset_name)), representations[class_one_len:], delimiter=",")
+
+            representations, classes_len, list_of_classes_name = encode_fasttext(dataset_name)
+            for i in range(len(list_of_classes_name)):
+                np.savetxt(os.path.join(args['data_dir'], f"fasttext_data/{dataset_name}_{list_of_classes_name[i]}.csv"), representations[:classes_len[i]], delimiter=",")
     
 
         if value == 'roberta':
 
-            representations, representations_cls, class_one_len, class_two_len = encode_roberta(dataset_name)
+            # representations, representations_cls, class_one_len, class_two_len = encode_roberta(dataset_name)
 
-            np.savetxt(os.path.join(args['data_dir'],"roberta-base_data/%s_neg.csv"%(dataset_name)), representations[:class_one_len], delimiter=",")
-            np.savetxt(os.path.join(args['data_dir'],"roberta-base_data/%s_pos.csv"%(dataset_name)), representations[class_one_len:], delimiter=",")
+            # np.savetxt(os.path.join(args['data_dir'],"roberta-base_data/%s_neg.csv"%(dataset_name)), representations[:class_one_len], delimiter=",")
+            # np.savetxt(os.path.join(args['data_dir'],"roberta-base_data/%s_pos.csv"%(dataset_name)), representations[class_one_len:], delimiter=",")
 
-            np.savetxt(os.path.join(args['data_dir'],"roberta-base_data/%s_neg_cls.csv"%(dataset_name)), representations_cls[:class_one_len], delimiter=",")
-            np.savetxt(os.path.join(args['data_dir'],"roberta-base_data/%s_pos_cls.csv"%(dataset_name)), representations_cls[class_one_len:], delimiter=",")
+            # np.savetxt(os.path.join(args['data_dir'],"roberta-base_data/%s_neg_cls.csv"%(dataset_name)), representations_cls[:class_one_len], delimiter=",")
+            # np.savetxt(os.path.join(args['data_dir'],"roberta-base_data/%s_pos_cls.csv"%(dataset_name)), representations_cls[class_one_len:], delimiter=",")
+            representations, representations_cls, classes_len, list_of_classes_name = encode_roberta(dataset_name)
+            for i in range(len(list_of_classes_name)):
+                np.savetxt(os.path.join(args['data_dir'], f"roberta-base_data/{dataset_name}_{list_of_classes_name[i]}.csv"), representations[:classes_len[i]], delimiter=",")
+                np.savetxt(os.path.join(args['data_dir'], f"roberta-base_data/{dataset_name}_{list_of_classes_name[i]}_cls.csv"), representations_cls[:classes_len[i]], delimiter=",")
+                
+            

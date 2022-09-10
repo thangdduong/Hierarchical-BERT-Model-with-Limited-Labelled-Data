@@ -72,7 +72,7 @@ args = {
 
     ## output of attention scores for sentences
     'attention_output_dir': 'attentions/',
-    'cuda_num': 1,
+    'cuda_num': 0,
 }
 
 
@@ -116,72 +116,90 @@ class Normalize(object):
 
 def import_data(dataset, max_len):
 
-
-
-    with open(os.path.join(args['data_dir'],'%s_neg.p'%(dataset)), 'rb') as fp:
-        pre_trained_neg_dict = pickle.load(fp)
+    list_of_pre_trained_dicts = []
+    list_of_classes_name = []
+    filepaths = [os.path.join(args['data_dir'], filename) for filename in os.listdir(args['data_dir']) if dataset in filename ]
+    for filepath in filepaths:
+        with open(os.path.join(filepath), 'rb') as fp:
+            class_name = filepath.split('/')[-1].split('_')[-2]
+            pre_trained_dict = pickle.load(fp)
+            list_of_pre_trained_dicts.append(pre_trained_dict)
+            list_of_classes_name.append(class_name)
+    # with open(os.path.join(args['data_dir'],'%s_neg.p'%(dataset)), 'rb') as fp:
+    #     pre_trained_neg_dict = pickle.load(fp)
         
-    with open(os.path.join(args['data_dir'],'%s_pos.p'%(dataset)), 'rb') as fp:
-        pre_trained_pos_dict = pickle.load(fp)
+    # with open(os.path.join(args['data_dir'],'%s_pos.p'%(dataset)), 'rb') as fp:
+    #     pre_trained_pos_dict = pickle.load(fp)
 
 
+    list_of_pre_trained_lst = []
+    for pre_trained_dict in list_of_pre_trained_dicts:
+        pre_trained = [pre_trained_dict[i] for i in pre_trained_dict.keys()]
+        list_of_pre_trained_lst.list(pre_trained)
+    # pre_trained_neg = [pre_trained_neg_dict[i] for i in pre_trained_neg_dict.keys()]
+    # pre_trained_pos = [pre_trained_pos_dict[i] for i in pre_trained_pos_dict.keys()]
 
-    pre_trained_neg = [pre_trained_neg_dict[i] for i in pre_trained_neg_dict.keys()]
-    pre_trained_pos = [pre_trained_pos_dict[i] for i in pre_trained_pos_dict.keys()]
 
-
-
-    pre_trained = pre_trained_neg+pre_trained_pos
+    pre_trained = [ele for sub_pretrained in list_of_pre_trained_lst for ele in sub_pretrained]
+    #pre_trained = pre_trained_neg+pre_trained_pos
 
 
 
     # Padding
-
-    pos = np.zeros((len(pre_trained_pos),max_len,768)) 
-    neg = np.zeros((len(pre_trained_neg),max_len,768))
+    padding_lst = []
+    for sub_pretrained in list_of_pre_trained_lst:
+        class_array = np.zeros((len(sub_pretrained),max_len,768)) 
+        padding_lst.append(class_array)
+    # pos = np.zeros((len(pre_trained_pos),max_len,768)) 
+    # neg = np.zeros((len(pre_trained_neg),max_len,768))
 
     
     
 
     # assigning values
-    for idx,doc in enumerate(pre_trained_pos): 
-        if doc.shape[0]<=max_len:
-    #         print(idx)
-            pos[idx][:doc.shape[0],:] = doc
-        else:
-            pos[idx][:max_len,:] = doc[:max_len,:]
-            
-    print('positive example shape: ', pos.shape)
+    for i in range(len(list_of_pre_trained_lst)):
+        for idx,doc in enumerate(list_of_pre_trained_lst[i]): 
+            if doc.shape[0] <= max_len:
+        #         print(idx)
+                padding_lst[i][idx][:doc.shape[0],:] = doc
+            else:
+                padding_lst[i][idx][:max_len,:] = doc[:max_len,:]
+                
+        print(f'{list_of_classes_name[i]} example shape: ', padding_lst[i].shape)
     
     # assert np.array_equal(pos[0],pre_trained_pos[0][:max_len,:])
 
 
 
 
-    for idx,doc in enumerate(pre_trained_neg): 
-        if doc.shape[0]<=max_len:
-            neg[idx][:doc.shape[0],:] = doc
-        else:
-            neg[idx][:max_len,:] = doc[:max_len,:]
+    # for idx,doc in enumerate(pre_trained_neg): 
+    #     if doc.shape[0]<=max_len:
+    #         neg[idx][:doc.shape[0],:] = doc
+    #     else:
+    #         neg[idx][:max_len,:] = doc[:max_len,:]
             
-    print('negative example shape: ', neg.shape)
-    print('negative example size', sizeof_fmt(sys.getsizeof(neg)))
-    # assert np.array_equal(neg[0],pre_trained_neg[0][:max_len,:])
+    # print('negative example shape: ', neg.shape)
+    # print('negative example size', sizeof_fmt(sys.getsizeof(neg)))
+    # # assert np.array_equal(neg[0],pre_trained_neg[0][:max_len,:])
 
 
 
 
-    TEXT_emb = np.concatenate((neg,pos),axis=0)
-    assert TEXT_emb.shape == (len(pre_trained_neg)+len(pre_trained_pos),max_len,768)
+    # TEXT_emb = np.concatenate((neg,pos),axis=0)
+    # assert TEXT_emb.shape == (len(pre_trained_neg)+len(pre_trained_pos),max_len,768)
+    # print(sizeof_fmt(sys.getsizeof(TEXT_emb)))
+    TEXT_emb = np.concatenate(padding_lst, axis=0)
+    assert TEXT_emb.shape == (sum(len(pre_trained) for pre_trained in list_of_pre_trained_lst), max_len, 768)
     print(sizeof_fmt(sys.getsizeof(TEXT_emb)))
 
 
+    # del neg,pos
+    del padding_lst
 
-    del neg,pos
+    # LABEL_emb = np.array([0]*len(pre_trained_neg)+[1]*len(pre_trained_pos))
+    LABEL_emb = np.array([n for n in range(len(list_of_pre_trained_lst)) for _ in range(len(list_of_pre_trained_lst[n]))])
 
-    LABEL_emb = np.array([0]*len(pre_trained_neg)+[1]*len(pre_trained_pos))
-
-    return TEXT_emb, LABEL_emb
+    return TEXT_emb, LABEL_emb, list_of_classes_name
 
 
 # ## Part 2. Config model
@@ -692,13 +710,11 @@ if __name__ == "__main__":
     train_batch=256
     val_batch=512
 
-    
-  
 
   
 
-    TEXT_emb, LABEL_emb = import_data(dataset, max_len)
-    config = BertConfig(seq_length=max_len)
+    TEXT_emb, LABEL_emb, list_of_classes_name = import_data(dataset, max_len)
+    config = BertConfig(seq_length=max_len, num_labels=len(list_of_classes_name))
 
     for train_size in train_sizes:
         df_all = pd.DataFrame()
@@ -758,14 +774,14 @@ if __name__ == "__main__":
             # best_acc = 0.0
 
 
-            for e in tqdm(range(no_epochs)):
+            for e in tqdm(range(no_epochs), position=0, leave=True):
                 
                 
 
                 print('\n epoch ',e)
 
 
-                for i, data in enumerate(tqdm(trainloader)):
+                for i, data in enumerate(tqdm(trainloader, position=0, leave=True)):
 
                     model.train(True)
 
