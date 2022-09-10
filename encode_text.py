@@ -94,7 +94,7 @@ def read_data(path):
 
 
 ## split a document into sentences
-def sentences_segmentation(corpora,tokenizer,min_token=0):
+def sentences_segmentation(corpora, tokenizer, min_token=0):
     segmented_documents = []
     
     for document in tqdm(corpora, position=0, leave=True):
@@ -269,7 +269,7 @@ def encode_roberta_hbm(dataset_name):
     print('size of the dataset:', len(all_corpus))
 
 
-    segmented_documents = sentences_segmentation(all_corpus,tokenizer)
+    segmented_documents = sentences_segmentation(all_corpus, tokenizer)
 
 
     length = []
@@ -296,13 +296,11 @@ def encode_roberta_hbm(dataset_name):
     doc_sen_embeddings = []
 
   
-    for doc in tqdm(segmented_documents):
-
-
+    for doc in tqdm(segmented_documents, position=0, leave=True):
 
         ## doc_sen_embedding: sentence represetations of a document shape [num of sentences in a doc, 768]
         doc_sen_embedding = []
-        for sen in tqdm(doc):
+        for sen in tqdm(doc, position=0, leave=True):
             input_ids = tokenizer(sen)['input_ids']
 
             # if number of tokens in a sentence is large than 510
@@ -321,7 +319,6 @@ def encode_roberta_hbm(dataset_name):
                 
             
         doc_sen_embeddings.append(doc_sen_embedding)
-
 
   
 
