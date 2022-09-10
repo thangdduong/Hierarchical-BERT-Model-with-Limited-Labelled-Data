@@ -97,7 +97,7 @@ def read_data(path):
 def sentences_segmentation(corpora, tokenizer, min_token=0):
     segmented_documents = []
     
-    for document in tqdm(corpora, position=0, leave=True):
+    for document in tqdm(corpora):
 
         segmented_document = []
         seg_document = sent_tokenize(document)
@@ -181,7 +181,7 @@ def encode_roberta(dataset_name):
 
     with torch.no_grad():
     
-        for article in tqdm(all_corpus, position=0, leave=True):
+        for article in tqdm(all_corpus):
     
             
             tokenized_text = tokenizer.tokenize(article)
@@ -296,11 +296,11 @@ def encode_roberta_hbm(dataset_name):
     doc_sen_embeddings = []
 
   
-    for doc in tqdm(segmented_documents, position=0, leave=True):
+    for doc in tqdm(segmented_documents):
 
         ## doc_sen_embedding: sentence represetations of a document shape [num of sentences in a doc, 768]
         doc_sen_embedding = []
-        for sen in tqdm(doc, position=0, leave=True):
+        for sen in tqdm(doc):
             input_ids = tokenizer(sen)['input_ids']
 
             # if number of tokens in a sentence is large than 510
