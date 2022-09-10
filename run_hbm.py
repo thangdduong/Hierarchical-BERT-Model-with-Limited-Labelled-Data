@@ -135,7 +135,7 @@ def import_data(dataset, max_len):
     list_of_pre_trained_lst = []
     for pre_trained_dict in list_of_pre_trained_dicts:
         pre_trained = [pre_trained_dict[i] for i in pre_trained_dict.keys()]
-        list_of_pre_trained_lst.list(pre_trained)
+        list_of_pre_trained_lst.append(pre_trained)
     # pre_trained_neg = [pre_trained_neg_dict[i] for i in pre_trained_neg_dict.keys()]
     # pre_trained_pos = [pre_trained_pos_dict[i] for i in pre_trained_pos_dict.keys()]
 
